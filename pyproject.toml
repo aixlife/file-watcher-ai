@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "file-watcher-ai"
+version = "1.0.0"
+description = "AI-powered file watcher with auto-splitting, organizing, and natural language rule management"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+keywords = ["file-watcher", "automation", "ai", "file-organizer"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment :: File Managers",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "watchdog>=4.0.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+ai = ["google-generativeai>=0.8.0"]
+
+[project.scripts]
+file-watcher = "app:cli"
+
+[project.urls]
+Homepage = "https://github.com/aixlife/file-watcher-ai"
+Repository = "https://github.com/aixlife/file-watcher-ai"
+Issues = "https://github.com/aixlife/file-watcher-ai/issues"
+
+[tool.setuptools.package-data]
+"*" = ["static/*", "handlers/*.py", "rules.yaml"]
+
+[tool.setuptools]
+py-modules = ["app", "watcher", "add_rule"]
+
+[tool.setuptools.packages.find]
+include = ["handlers"]

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Watcher</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ══════ SETUP WIZARD ══════ -->
+<div id="setup-screen" class="screen" style="display:none">
+  <div class="setup-container">
+    <div class="setup-header">
+      <div class="logo">FW</div>
+      <h1>File Watcher</h1>
+      <p class="subtitle">파일 감시 자동화 도구</p>
+    </div>
+
+    <!-- Step 1: 환경 체크 -->
+    <div id="setup-step1" class="setup-step">
+      <h2>환경 확인</h2>
+      <div id="env-checks" class="env-list"></div>
+      <div id="install-deps-area" style="display:none">
+        <button id="btn-install-deps" class="btn btn-primary" onclick="installDeps()">의존성 설치</button>
+        <span id="install-status" class="status-text"></span>
+      </div>
+      <button class="btn btn-primary" id="btn-next-step2" onclick="goStep(2)">다음</button>
+    </div>
+
+    <!-- Step 2: 폴더 선택 -->
+    <div id="setup-step2" class="setup-step" style="display:none">
+      <h2>감시할 폴더 선택</h2>
+      <div class="folder-picker">
+        <div class="folder-current">
+          <button class="btn btn-sm" onclick="navigateFolder('parent')">상위</button>
+          <span id="current-path">~</span>
+        </div>
+        <div id="folder-list" class="folder-list"></div>
+        <div class="folder-input-row">
+          <input type="text" id="watch-dir-input" value="~/Downloads" placeholder="경로 직접 입력">
+          <button class="btn btn-sm" onclick="navigateFolder(document.getElementById('watch-dir-input').value)">이동</button>
+        </div>
+      </div>
+      <div class="setup-actions">
+        <button class="btn btn-ghost" onclick="goStep(1)">이전</button>
+        <button class="btn btn-primary" onclick="completeSetup()">설정 완료 및 시작</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MAIN DASHBOARD ══════ -->
+<div id="main-screen" class="screen" style="display:none">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-sm">FW</div>
+      <h1>File Watcher</h1>
+    </div>
+    <div class="header-right">
+      <div id="watcher-status" class="status-badge off">중지됨</div>
+      <button id="btn-toggle-watcher" class="btn btn-primary btn-sm" onclick="toggleWatcher()">시작</button>
+      <button class="btn btn-ghost btn-sm" onclick="showSettings()">설정</button>
+    </div>
+  </header>
+
+  <!-- Tab Nav -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="rules" onclick="switchTab('rules')">규칙 관리</button>
+    <button class="tab" data-tab="activity" onclick="switchTab('activity')">활동 로그</button>
+  </nav>
+
+  <!-- Tab: Rules -->
+  <main id="tab-rules" class="tab-content active">
+    <div class="section-header">
+      <div>
+        <span id="rules-count">0</span>개 규칙
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-primary" onclick="showAIGenerate()">AI 규칙 생성</button>
+      </div>
+    </div>
+    <div id="rules-list" class="rules-list"></div>
+  </main>
+
+  <!-- Tab: Activity -->
+  <main id="tab-activity" class="tab-content">
+    <div class="section-header">
+      <div>최근 활동</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadLogs()">새로고침</button>
+    </div>
+    <div id="activity-list" class="activity-list"></div>
+    <h3 class="mt-4">Watcher 로그</h3>
+    <div id="watcher-logs" class="log-area"></div>
+  </main>
+</div>
+
+<!-- ══════ MODALS ══════ -->
+
+<!-- AI 수정 모달 -->
+<div id="modal-ai-edit" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>AI 규칙 수정</h2>
+      <button class="btn-close" onclick="closeModal('modal-ai-edit')">&times;</button>
+    </div>
+    <div class="ai-edit-current">
+      <h3>현재 규칙</h3>
+      <pre id="ai-edit-current-json"></pre>
+    </div>
+    <div class="form-group">
+      <label>어떻게 수정할까요? (자연어로 입력)</label>
+      <textarea id="ai-edit-instruction" rows="3" placeholder="예: 확장자에 .pdf도 추가해줘 / 분할 기준을 200KB 이상 6분할로 변경"></textarea>
+    </div>
+    <div id="ai-edit-result" style="display:none">
+      <h3>수정된 규칙</h3>
+      <pre id="ai-edit-result-json"></pre>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ai-edit')">취소</button>
+      <button id="btn-ai-edit" class="btn btn-primary" onclick="executeAIEdit()">AI 수정</button>
+      <button id="btn-ai-edit-apply" class="btn btn-primary" style="display:none" onclick="applyAIEdit()">수정 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 생성 모달 -->
+<div id="modal-ai" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>AI 규칙 자동 생성</h2>
+      <button class="btn-close" onclick="closeModal('modal-ai')">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>규칙을 자연어로 설명하세요</label>
+      <textarea id="ai-description" rows="3" placeholder="예: invoice PDF가 들어오면 Documents/Invoices 폴더로 이동"></textarea>
+    </div>
+    <div id="ai-result" style="display:none">
+      <h3>생성된 규칙</h3>
+      <pre id="ai-result-json"></pre>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ai')">취소</button>
+      <button id="btn-ai-generate" class="btn btn-primary" onclick="generateAIRule()">생성</button>
+      <button id="btn-ai-apply" class="btn btn-primary" style="display:none" onclick="applyAIRule()">규칙 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div id="modal-settings" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>설정</h2>
+      <button class="btn-close" onclick="closeModal('modal-settings')">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>Gemini API Key</label>
+      <input type="password" id="setting-api-key" placeholder="AI 규칙 생성/수정에 필요">
+      <span id="setting-api-key-status" class="status-text"></span>
+    </div>
+    <hr style="border-color:var(--border);margin:12px 0">
+    <div class="form-group">
+      <label>감시 디렉토리</label>
+      <input type="text" id="setting-watch-dir" placeholder="~/Downloads">
+    </div>
+    <div class="form-group">
+      <label>원본 보관 폴더명</label>
+      <input type="text" id="setting-originals" value="_originals">
+    </div>
+    <div class="form-group">
+      <label>처리 결과 폴더명</label>
+      <input type="text" id="setting-processed" value="_processed">
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>안정화 대기 (초)</label>
+        <input type="number" id="setting-stability" value="3" min="1" max="30">
+      </div>
+      <div class="form-group">
+        <label>쿨다운 (초)</label>
+        <input type="number" id="setting-cooldown" value="10" min="1" max="120">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-settings')">취소</button>
+      <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
