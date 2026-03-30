@@ -1,0 +1,45 @@
+settings:
+  watch_directory: /Users/aixlife/Downloads
+  originals_directory: _originals
+  processed_directory: _processed
+  stability_seconds: 3
+  cooldown_seconds: 10
+rules:
+- name: transcript-split
+  description: transcript 키워드가 포함된 파일을 크기에 따라 분할하고 원본 보관
+  enabled: true
+  trigger:
+    filename_contains: transcript
+    extensions:
+    - .txt
+    - .md
+    - .srt
+    - .vtt
+  action: split_by_size
+  options:
+    size_rules:
+    - min_kb: 190
+      parts: 5
+    - min_kb: 150
+      parts: 4
+    - min_kb: 90
+      parts: 3
+    - min_kb: 40
+      parts: 2
+    default_parts: 1
+    output_format: md
+    move_original: true
+- name: move-audio-to-lectures
+  description: 음성파일이 다운로드 되면 /Users/aixlife/Downloads/강의_오디오 폴더에 옮기기
+  enabled: true
+  trigger:
+    extensions:
+    - .mp3
+    - .wav
+    - .m4a
+    - .flac
+    - .aac
+    - .ogg
+  action: move_to_folder
+  options:
+    destination: /Users/aixlife/Downloads/강의_오디오

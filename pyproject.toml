@@ -34,18 +34,15 @@ dependencies = [
 ai = ["google-generativeai>=0.8.0"]
 
 [project.scripts]
-file-watcher = "app:cli"
+file-watcher = "file_watcher_ai.server:cli"
 
 [project.urls]
 Homepage = "https://github.com/aixlife/file-watcher-ai"
 Repository = "https://github.com/aixlife/file-watcher-ai"
 Issues = "https://github.com/aixlife/file-watcher-ai/issues"
 
-[tool.setuptools.package-data]
-"*" = ["static/*", "handlers/*.py", "rules.yaml"]
-
-[tool.setuptools]
-py-modules = ["app", "watcher", "add_rule"]
-
 [tool.setuptools.packages.find]
-include = ["handlers"]
+include = ["file_watcher_ai", "file_watcher_ai.*"]
+
+[tool.setuptools.package-data]
+file_watcher_ai = ["static/*", "handlers/*.py", "default_rules.yaml"]

@@ -23,11 +23,23 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 
 # ─── 경로 설정 ───
-BASE_DIR = Path(__file__).parent
-RULES_PATH = BASE_DIR / "rules.yaml"
-CONFIG_PATH = BASE_DIR / "config.json"
-LOGS_DIR = BASE_DIR / "logs"
+PACKAGE_DIR = Path(__file__).parent  # 패키지 소스 디렉토리 (static, handlers 등)
+DATA_DIR = Path.home() / ".file-watcher-ai"  # 사용자 데이터 (설정, 규칙, 로그)
+DATA_DIR.mkdir(exist_ok=True)
+
+# 첫 실행 시 기본 규칙 파일 복사
+RULES_PATH = DATA_DIR / "rules.yaml"
+if not RULES_PATH.exists():
+    default_rules = PACKAGE_DIR / "default_rules.yaml"
+    if default_rules.exists():
+        shutil.copy(default_rules, RULES_PATH)
+
+CONFIG_PATH = DATA_DIR / "config.json"
+LOGS_DIR = DATA_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
+
+# 하위 호환: 구 경로 참조용
+BASE_DIR = PACKAGE_DIR
 
 # ─── 앱 상태 ───
 activity_log = deque(maxlen=200)
@@ -82,17 +94,14 @@ def start_watcher():
     if watcher_running and watcher_process and watcher_process.poll() is None:
         return {"status": "already_running", "pid": watcher_process.pid}
 
-    venv_python = BASE_DIR / ".venv" / "bin" / "python"
-    if not venv_python.exists():
-        venv_python = sys.executable
-
     log_file = LOGS_DIR / "watcher.log"
+    watcher_script = str(PACKAGE_DIR / "watcher.py")
     with open(log_file, "a") as lf:
         watcher_process = subprocess.Popen(
-            [str(venv_python), str(BASE_DIR / "watcher.py"), "--config", str(RULES_PATH)],
+            [sys.executable, watcher_script, "--config", str(RULES_PATH)],
             stdout=lf,
             stderr=subprocess.STDOUT,
-            cwd=str(BASE_DIR),
+            cwd=str(PACKAGE_DIR),
         )
     watcher_running = True
     add_log("system", "File Watcher 시작됨", f"PID: {watcher_process.pid}")
@@ -126,18 +135,25 @@ def add_log(log_type: str, message: str, detail: str = ""):
 
 def check_environment() -> dict:
     venv_exists = (BASE_DIR / ".venv").exists()
-    venv_python = BASE_DIR / ".venv" / "bin" / "python"
 
+    # 현재 프로세스에서 직접 import 체크 (앱/venv 모두 대응)
     deps_ok = False
-    if venv_exists and venv_python.exists():
-        try:
-            result = subprocess.run(
-                [str(venv_python), "-c", "import watchdog, yaml; print('ok')"],
-                capture_output=True, text=True, timeout=10,
-            )
-            deps_ok = result.stdout.strip() == "ok"
-        except Exception:
-            pass
+    try:
+        import watchdog  # noqa: F401
+        import yaml  # noqa: F401
+        deps_ok = True
+    except ImportError:
+        # 현재 프로세스에서 안 되면 venv subprocess 시도
+        venv_python = BASE_DIR / ".venv" / "bin" / "python"
+        if venv_exists and venv_python.exists():
+            try:
+                result = subprocess.run(
+                    [str(venv_python), "-c", "import watchdog, yaml; print('ok')"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                deps_ok = result.stdout.strip() == "ok"
+            except Exception:
+                pass
 
     config = load_config()
     gemini_key = bool(os.environ.get("GEMINI_API_KEY") or config.get("gemini_api_key"))
@@ -218,15 +234,16 @@ async def complete_setup(request: Request):
 
 @app.post("/api/setup/install-deps")
 async def install_deps():
-    """가상환경 생성 및 의존성 설치."""
-    venv_dir = BASE_DIR / ".venv"
+    """pip install로 의존성이 이미 설치되어 있으면 스킵."""
     try:
-        if not venv_dir.exists():
-            subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True, timeout=30)
+        import watchdog, yaml  # noqa: F401
+        return {"status": "ok"}
+    except ImportError:
+        pass
 
-        pip = venv_dir / "bin" / "pip"
+    try:
         result = subprocess.run(
-            [str(pip), "install", "-r", str(BASE_DIR / "requirements.txt"), "-q"],
+            [sys.executable, "-m", "pip", "install", "watchdog", "pyyaml", "fastapi", "uvicorn", "-q"],
             capture_output=True, text=True, timeout=120,
         )
         if result.returncode != 0:
